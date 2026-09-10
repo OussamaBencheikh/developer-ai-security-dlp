@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": { "@dlp/detection-engine": ["../../packages/detection-engine/src/index.ts"] }
+  },
+  "include": ["src", "tests"]
+}

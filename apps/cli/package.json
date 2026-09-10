@@ -1,0 +1,15 @@
+{
+  "name": "@dlp/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "dlp": "dist/src/index.js" },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dlp/detection-engine": "0.1.0"
+  }
+}
