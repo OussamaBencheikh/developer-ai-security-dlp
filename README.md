@@ -17,7 +17,7 @@ Privacy-first protection that helps detect sensitive developer information befor
 
 Raw prompts and secret values are not sent to the API by design.
 
-The current API auth store is in-memory for local development. The SQL migration is the persistence contract; a PostgreSQL repository and production session store are still required before deployment.
+The API uses PostgreSQL-backed authentication automatically when `DATABASE_URL` is configured; without it, it falls back to an in-memory local development store. Apply `infrastructure/database/001_initial.sql` before starting with PostgreSQL.
 
 ## Development
 

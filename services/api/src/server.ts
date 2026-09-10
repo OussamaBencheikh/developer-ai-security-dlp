@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { AuthStore } from "./auth.js";
+import { Pool } from "pg";
+import { AuthStore, type AuthService } from "./auth.js";
+import { PostgresAuthStore } from "./auth-pg.js";
 
 const forbiddenField = /^(?:prompt|secretvalue|fullprompt|sourcecode|password|token|privatekey|authorization|cookie)$/i;
 const eventTypePattern = /^[a-z][a-z0-9_]{2,63}$/;
@@ -90,7 +92,8 @@ export function createApiServer(options: ApiOptions = {}) {
   const allowedOrigin = options.allowedOrigin ?? process.env.CORS_ORIGIN ?? "http://localhost:5173";
   const limit = options.maxRequestsPerMinute ?? 60;
   const rateLimits = new Map<string, RateLimitEntry>();
-  const auth = new AuthStore();
+  const databasePool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL, max: 10 }) : null;
+  const auth: AuthService = databasePool ? new PostgresAuthStore(databasePool) : new AuthStore();
   return createServer(async (request, response) => {
     applyHeaders(response, requestOrigin(request, allowedOrigin));
     if (request.method === "OPTIONS") return send(response, 204, {});
@@ -109,8 +112,8 @@ export function createApiServer(options: ApiOptions = {}) {
         const body = await readJson(request);
         const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : null;
         if (!input || typeof input.email !== "string" || typeof input.password !== "string") return send(response, 400, { error: "invalid_request" });
-        const user = auth.register(input.email, input.password);
-        const login = auth.login(input.email, input.password);
+        const user = await auth.register(input.email, input.password);
+        const login = await auth.login(input.email, input.password);
         setSessionCookie(response, login.sessionId, 8 * 60 * 60);
         return send(response, 201, { user });
       } catch (error) {
@@ -122,7 +125,7 @@ export function createApiServer(options: ApiOptions = {}) {
         const body = await readJson(request);
         const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : null;
         if (!input || typeof input.email !== "string" || typeof input.password !== "string") return send(response, 400, { error: "invalid_request" });
-        const result = auth.login(input.email, input.password);
+        const result = await auth.login(input.email, input.password);
         setSessionCookie(response, result.sessionId, 8 * 60 * 60);
         return send(response, 200, { user: result.user });
       } catch {
@@ -130,21 +133,21 @@ export function createApiServer(options: ApiOptions = {}) {
       }
     }
     if (request.method === "POST" && request.url === "/v1/auth/logout") {
-      auth.logout(sessionId(request));
+      await auth.logout(sessionId(request));
       setSessionCookie(response, "", 0);
       return send(response, 204, {});
     }
     if (request.method === "GET" && request.url === "/v1/auth/me") {
-      const user = auth.getUser(sessionId(request));
+      const user = await auth.getUser(sessionId(request));
       return user ? send(response, 200, { user }) : send(response, 401, { error: "unauthorized" });
     }
     if (request.method === "GET" && request.url === "/v1/organization") {
-      const user = auth.getUser(sessionId(request));
+      const user = await auth.getUser(sessionId(request));
       if (!user) return send(response, 401, { error: "unauthorized" });
-      return send(response, 200, { organization: auth.organizationFor(user.id) });
+      return send(response, 200, { organization: await auth.organizationFor(user.id) });
     }
     if (request.method === "GET" && request.url === "/v1/dashboard/summary") {
-      const user = auth.getUser(sessionId(request));
+      const user = await auth.getUser(sessionId(request));
       if (!user) return send(response, 401, { error: "unauthorized" });
       return send(response, 200, { protectedDevices: 0, detections: 0, blockedEvents: 0, redactions: 0, recentEvents: [] });
     }

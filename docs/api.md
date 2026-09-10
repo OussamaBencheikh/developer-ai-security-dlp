@@ -11,4 +11,4 @@ Authentication endpoints are available for local development:
 - `GET /v1/auth/me`
 - `POST /v1/auth/logout`
 
-They use scrypt hashing and opaque HttpOnly sessions in memory. Production must replace the store with the PostgreSQL schema in `infrastructure/database/001_initial.sql` and hash session identifiers at rest.
+They use scrypt hashing and opaque HttpOnly sessions. With `DATABASE_URL`, users and session hashes are stored in PostgreSQL; without it, the API uses an in-memory local fallback. Apply `infrastructure/database/001_initial.sql` before enabling the database mode.

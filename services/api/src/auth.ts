@@ -9,6 +9,14 @@ export interface AuthUser {
   readonly role: OrganizationRole;
 }
 
+export interface AuthService {
+  register(email: string, password: string): AuthUser | Promise<AuthUser>;
+  login(email: string, password: string): { user: AuthUser; sessionId: string } | Promise<{ user: AuthUser; sessionId: string }>;
+  getUser(sessionId: string | undefined): AuthUser | null | Promise<AuthUser | null>;
+  logout(sessionId: string | undefined): void | Promise<void>;
+  organizationFor(userId: string): { id: string; name: string; role: OrganizationRole; memberCount: number } | null | Promise<{ id: string; name: string; role: OrganizationRole; memberCount: number } | null>;
+}
+
 interface StoredUser extends AuthUser {
   readonly passwordHash: Buffer;
   readonly salt: Buffer;
