@@ -35,6 +35,12 @@ function applyHeaders(response: ServerResponse, allowedOrigin: string): void {
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 }
 
+function requestOrigin(request: IncomingMessage, configuredOrigin: string): string {
+  const origin = request.headers.origin;
+  const localOrigins = new Set([configuredOrigin, "http://localhost:5173", "http://127.0.0.1:5173"]);
+  return typeof origin === "string" && localOrigins.has(origin) ? origin : configuredOrigin;
+}
+
 async function readJson(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -86,7 +92,7 @@ export function createApiServer(options: ApiOptions = {}) {
   const rateLimits = new Map<string, RateLimitEntry>();
   const auth = new AuthStore();
   return createServer(async (request, response) => {
-    applyHeaders(response, allowedOrigin);
+    applyHeaders(response, requestOrigin(request, allowedOrigin));
     if (request.method === "OPTIONS") return send(response, 204, {});
     const key = clientKey(request);
     const now = Date.now();

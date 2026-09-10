@@ -10,12 +10,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return response.status === 204 ? ({} as T) : response.json() as Promise<T>;
 }
 
-function loginView(message = ""): void {
-  app.innerHTML = `<main class="login"><form class="login-card" id="login-form"><div class="brand">DLP <span>SECURITY</span></div><p class="eyebrow">Developer protection console</p><h1 class="title">Sign in</h1><p class="muted">Review risk metadata without exposing prompts or secret values.</p><label>Email<input name="email" type="email" autocomplete="email" required placeholder="you@company.com"></label><label>Password<input name="password" type="password" autocomplete="current-password" required minlength="12"></label>${message ? `<p class="error">${message}</p>` : ""}<button class="primary" type="submit">Sign in</button><p class="muted">New local account? Register through the API first.</p></form></main>`;
+function loginView(message = "", mode: "login" | "register" = "login"): void {
+  const isRegister = mode === "register";
+  app.innerHTML = `<main class="login"><form class="login-card" id="login-form"><div class="brand">DLP <span>SECURITY</span></div><p class="eyebrow">Developer protection console</p><h1 class="title">${isRegister ? "Create account" : "Sign in"}</h1><p class="muted">Review risk metadata without exposing prompts or secret values.</p><label>Email<input name="email" type="email" autocomplete="email" required placeholder="you@company.com"></label><label>Password<input name="password" type="password" autocomplete="${isRegister ? "new-password" : "current-password"}" required minlength="12"></label>${message ? `<p class="error">${message}</p>` : ""}<button class="primary" type="submit">${isRegister ? "Create account" : "Sign in"}</button><p class="muted">${isRegister ? "Already have an account?" : "Need an account?"} <a href="#" id="toggle-auth">${isRegister ? "Sign in" : "Register"}</a></p></form></main>`;
+  document.querySelector<HTMLAnchorElement>("#toggle-auth")?.addEventListener("click", (event) => { event.preventDefault(); loginView("", isRegister ? "login" : "register"); });
   document.querySelector<HTMLFormElement>("#login-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget as HTMLFormElement);
-    try { await request("/v1/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) }); await dashboardView(); } catch { loginView("Invalid credentials or API unavailable."); }
+    try { await request(isRegister ? "/v1/auth/register" : "/v1/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) }); await dashboardView(); } catch { loginView(isRegister ? "Could not create account. Use a unique email and a password of at least 12 characters." : "Invalid credentials or API unavailable.", mode); }
   });
 }
 
