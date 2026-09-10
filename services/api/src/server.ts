@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { AuthStore } from "./auth.js";
 
 const forbiddenField = /^(?:prompt|secretvalue|fullprompt|sourcecode|password|token|privatekey|authorization|cookie)$/i;
 const eventTypePattern = /^[a-z][a-z0-9_]{2,63}$/;
@@ -28,6 +29,8 @@ function applyHeaders(response: ServerResponse, allowedOrigin: string): void {
   response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   response.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
   response.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+  response.setHeader("Access-Control-Allow-Credentials", "true");
+  response.setHeader("Vary", "Origin");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 }
@@ -68,10 +71,20 @@ function clientKey(request: IncomingMessage): string {
   return typeof forwarded === "string" ? forwarded.split(",")[0]?.trim() || "unknown" : request.socket.remoteAddress ?? "unknown";
 }
 
+function sessionId(request: IncomingMessage): string | undefined {
+  const cookie = request.headers.cookie?.split(";").map((part) => part.trim()).find((part) => part.startsWith("dlp_session="));
+  return cookie?.slice("dlp_session=".length);
+}
+
+function setSessionCookie(response: ServerResponse, value: string, maxAge: number): void {
+  response.setHeader("Set-Cookie", `dlp_session=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}`);
+}
+
 export function createApiServer(options: ApiOptions = {}) {
   const allowedOrigin = options.allowedOrigin ?? process.env.CORS_ORIGIN ?? "http://localhost:5173";
   const limit = options.maxRequestsPerMinute ?? 60;
   const rateLimits = new Map<string, RateLimitEntry>();
+  const auth = new AuthStore();
   return createServer(async (request, response) => {
     applyHeaders(response, allowedOrigin);
     if (request.method === "OPTIONS") return send(response, 204, {});
@@ -85,6 +98,40 @@ export function createApiServer(options: ApiOptions = {}) {
     } else current.count += 1;
 
     if (request.method === "GET" && request.url === "/health") return send(response, 200, { status: "ok" });
+    if (request.method === "POST" && request.url === "/v1/auth/register") {
+      try {
+        const body = await readJson(request);
+        const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : null;
+        if (!input || typeof input.email !== "string" || typeof input.password !== "string") return send(response, 400, { error: "invalid_request" });
+        const user = auth.register(input.email, input.password);
+        const login = auth.login(input.email, input.password);
+        setSessionCookie(response, login.sessionId, 8 * 60 * 60);
+        return send(response, 201, { user });
+      } catch (error) {
+        return send(response, error instanceof Error && error.message === "account_exists" ? 409 : 400, { error: error instanceof Error && error.message === "account_exists" ? "account_exists" : "invalid_request" });
+      }
+    }
+    if (request.method === "POST" && request.url === "/v1/auth/login") {
+      try {
+        const body = await readJson(request);
+        const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : null;
+        if (!input || typeof input.email !== "string" || typeof input.password !== "string") return send(response, 400, { error: "invalid_request" });
+        const result = auth.login(input.email, input.password);
+        setSessionCookie(response, result.sessionId, 8 * 60 * 60);
+        return send(response, 200, { user: result.user });
+      } catch {
+        return send(response, 401, { error: "invalid_credentials" });
+      }
+    }
+    if (request.method === "POST" && request.url === "/v1/auth/logout") {
+      auth.logout(sessionId(request));
+      setSessionCookie(response, "", 0);
+      return send(response, 204, {});
+    }
+    if (request.method === "GET" && request.url === "/v1/auth/me") {
+      const user = auth.getUser(sessionId(request));
+      return user ? send(response, 200, { user }) : send(response, 401, { error: "unauthorized" });
+    }
     if (request.method === "POST" && request.url === "/v1/security-events") {
       try {
         const event = await readJson(request);

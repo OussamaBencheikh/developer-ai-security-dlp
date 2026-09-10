@@ -18,6 +18,16 @@ async function request(server: ReturnType<typeof createApiServer>, body?: unknow
   });
 }
 
+async function authRequest(server: ReturnType<typeof createApiServer>, path: string, method: "GET" | "POST", body?: unknown, cookie?: string): Promise<Response> {
+  if (!(server.address() as AddressInfo)?.port) await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+  const port = (server.address() as AddressInfo).port;
+  return fetch(`http://127.0.0.1:${port}${path}`, {
+    method,
+    headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
 describe("metadata-only API", () => {
   it("accepts valid metadata and rejects secret-bearing fields", async () => {
     const server = createApiServer({ maxRequestsPerMinute: 10 });
@@ -36,5 +46,19 @@ describe("metadata-only API", () => {
     const limited = await request(server, event);
     expect(limited.status).toBe(429);
     expect(limited.headers.get("retry-after")).toBeTruthy();
+  });
+
+  it("registers, authenticates, reads, and logs out a session", async () => {
+    const server = createApiServer({ maxRequestsPerMinute: 20 });
+    servers.push(server);
+    const register = await authRequest(server, "/v1/auth/register", "POST", { email: "dev@example.com", password: "a-strong-password" });
+    const cookie = register.headers.get("set-cookie");
+    expect(register.status).toBe(201);
+    expect(cookie).toContain("HttpOnly");
+    const me = await authRequest(server, "/v1/auth/me", "GET", undefined, cookie ?? undefined);
+    expect(me.status).toBe(200);
+    const logout = await authRequest(server, "/v1/auth/logout", "POST", undefined, cookie ?? undefined);
+    expect(logout.status).toBe(204);
+    expect((await authRequest(server, "/v1/auth/me", "GET", undefined, cookie ?? undefined)).status).toBe(401);
   });
 });

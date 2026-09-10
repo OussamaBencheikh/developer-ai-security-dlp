@@ -9,9 +9,13 @@ Privacy-first protection that helps detect sensitive developer information befor
 - Redaction engine that only consumes spans and replacement labels; it never needs the original secret as a separate value.
 - Manifest V3 extension foundation for ChatGPT, Claude, and Gemini domains.
 - Metadata-only API endpoint and security headers.
+- Local development authentication endpoints with scrypt password hashing and opaque HttpOnly sessions.
+- PostgreSQL migration for organizations, members, users, sessions, policies, and metadata-only security events.
 - Synthetic tests for detection and redaction.
 
 Raw prompts and secret values are not sent to the API by design.
+
+The current API auth store is in-memory for local development. The SQL migration is the persistence contract; a PostgreSQL repository and production session store are still required before deployment.
 
 ## Development
 
