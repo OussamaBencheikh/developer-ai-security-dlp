@@ -2,7 +2,7 @@ import { build } from "esbuild";
 import { cp, mkdir } from "node:fs/promises";
 
 await mkdir("dist", { recursive: true });
-for (const entry of ["background", "content", "popup"]) {
+for (const entry of ["background", "content", "popup", "options"]) {
   await build({
     entryPoints: [`src/${entry}.ts`],
     bundle: true,

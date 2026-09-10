@@ -14,6 +14,15 @@ export type SecretCategory =
 export type Severity = "info" | "low" | "medium" | "high" | "critical";
 export type Confidence = "low" | "medium" | "high" | "critical";
 export type Sensitivity = "balanced" | "strict" | "permissive";
+export type PolicyAction = "allow" | "warn" | "block";
+
+export interface Policy {
+  readonly critical: PolicyAction;
+  readonly high: PolicyAction;
+  readonly medium: PolicyAction;
+  readonly low: PolicyAction;
+  readonly info: PolicyAction;
+}
 
 export interface Detection {
   readonly category: SecretCategory;
@@ -29,6 +38,11 @@ export interface ScanResult {
   readonly detections: readonly Detection[];
   readonly risk: Severity;
   readonly scannedLength: number;
+}
+
+export interface PolicyDecision {
+  readonly action: PolicyAction;
+  readonly reason: Severity | "none";
 }
 
 export interface DetectorContext {
