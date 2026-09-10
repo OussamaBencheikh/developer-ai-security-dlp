@@ -89,11 +89,15 @@ function findComposer(): Element | null {
   return Array.from(document.querySelectorAll(selectors.join(","))).find((element) => getText(element).trim().length > 0) ?? null;
 }
 
+function composerFromTarget(target: EventTarget | null): Element | null {
+  return target instanceof Element && target.matches(selectors.join(",")) ? target : findComposer();
+}
+
 function findSendButton(): HTMLButtonElement | null {
   const candidates = document.querySelectorAll<HTMLButtonElement>("button, [role='button']");
   return Array.from(candidates).find((button) => {
-    const label = `${button.getAttribute("aria-label") ?? ""} ${button.getAttribute("data-testid") ?? ""} ${button.getAttribute("title") ?? ""}`.toLowerCase();
-    return /send|submit/.test(label) && !button.hasAttribute("disabled");
+    const label = `${button.getAttribute("aria-label") ?? ""} ${button.getAttribute("data-testid") ?? ""} ${button.getAttribute("title") ?? ""} ${button.getAttribute("type") ?? ""}`.toLowerCase();
+    return /send|submit|prompt/.test(label) && !button.hasAttribute("disabled");
   }) ?? null;
 }
 
@@ -134,7 +138,7 @@ function protectSubmit(event: Event): void {
 
 function protectKeydown(event: KeyboardEvent): void {
   if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
-  const input = findComposer();
+  const input = composerFromTarget(event.target);
   if (input) protectInput(event, input, (value) => {
     setText(input, value);
     allowNextAction = true;
@@ -147,8 +151,8 @@ function protectSendClick(event: MouseEvent): void {
   if (!(clicked instanceof Element) || !clicked.closest("button, [role='button']")) return;
   const button = clicked.closest("button, [role='button']");
   if (!button) return;
-  const label = `${button.getAttribute("aria-label") ?? ""} ${button.getAttribute("data-testid") ?? ""} ${button.getAttribute("title") ?? ""}`.toLowerCase();
-  if (!/send|submit/.test(label)) return;
+  const label = `${button.getAttribute("aria-label") ?? ""} ${button.getAttribute("data-testid") ?? ""} ${button.getAttribute("title") ?? ""} ${button.getAttribute("type") ?? ""}`.toLowerCase();
+  if (!/send|submit|prompt/.test(label)) return;
   const input = findComposer();
   if (input) protectInput(event, input, (value) => resumeSend(input, value));
 }
@@ -164,6 +168,12 @@ function install(): void {
     });
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
+  for (const selector of selectors) document.querySelectorAll(selector).forEach((element) => {
+    if (element.getAttribute("data-dlp-bound") === "true") return;
+    element.setAttribute("data-dlp-bound", "true");
+    element.addEventListener("input", () => inspect(element), { passive: true });
+    inspect(element);
+  });
   document.addEventListener("submit", protectSubmit, true);
   document.addEventListener("keydown", protectKeydown, true);
   document.addEventListener("click", protectSendClick, true);
