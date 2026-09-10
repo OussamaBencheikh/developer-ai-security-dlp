@@ -11,6 +11,8 @@ Privacy-first protection that helps detect sensitive developer information befor
 - Metadata-only API endpoint and security headers.
 - Local development authentication endpoints with scrypt password hashing and opaque HttpOnly sessions.
 - PostgreSQL migration for organizations, members, users, sessions, policies, and metadata-only security events.
+- A dashboard web app with authenticated overview metrics and organization role visibility.
+- Centralized organization RBAC and billing entitlements for FREE, PRO, TEAM, and ENTERPRISE.
 - Synthetic tests for detection and redaction.
 
 Raw prompts and secret values are not sent to the API by design.

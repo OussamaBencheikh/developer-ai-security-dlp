@@ -132,6 +132,16 @@ export function createApiServer(options: ApiOptions = {}) {
       const user = auth.getUser(sessionId(request));
       return user ? send(response, 200, { user }) : send(response, 401, { error: "unauthorized" });
     }
+    if (request.method === "GET" && request.url === "/v1/organization") {
+      const user = auth.getUser(sessionId(request));
+      if (!user) return send(response, 401, { error: "unauthorized" });
+      return send(response, 200, { organization: auth.organizationFor(user.id) });
+    }
+    if (request.method === "GET" && request.url === "/v1/dashboard/summary") {
+      const user = auth.getUser(sessionId(request));
+      if (!user) return send(response, 401, { error: "unauthorized" });
+      return send(response, 200, { protectedDevices: 0, detections: 0, blockedEvents: 0, redactions: 0, recentEvents: [] });
+    }
     if (request.method === "POST" && request.url === "/v1/security-events") {
       try {
         const event = await readJson(request);

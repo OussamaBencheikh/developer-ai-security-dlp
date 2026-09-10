@@ -70,6 +70,11 @@ export class AuthStore {
     if (sessionId) this.sessions.delete(sessionId);
   }
 
+  organizationFor(userId: string): { id: string; name: string; role: OrganizationRole; memberCount: number } | null {
+    const user = this.usersById.get(userId);
+    return user ? { id: user.organizationId, name: `${user.email}'s organization`, role: user.role, memberCount: 1 } : null;
+  }
+
   private publicUser(user: StoredUser): AuthUser {
     return { id: user.id, email: user.email, organizationId: user.organizationId, role: user.role };
   }
