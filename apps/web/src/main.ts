@@ -4,9 +4,18 @@ interface Summary { protectedDevices: number; detections: number; blockedEvents:
 const api = "http://localhost:3000";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
+class ApiError extends Error {
+  constructor(readonly status: number, message: string) { super(message); }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${api}${path}`, { ...options, credentials: "include", headers: { "Content-Type": "application/json", ...(options.headers ?? {}) } });
-  if (!response.ok) throw new Error(response.status === 401 ? "unauthorized" : "request_failed");
+  let response: Response;
+  try {
+    response = await fetch(`${api}${path}`, { ...options, credentials: "include", headers: { "Content-Type": "application/json", ...(options.headers ?? {}) } });
+  } catch {
+    throw new ApiError(0, "api_unavailable");
+  }
+  if (!response.ok) throw new ApiError(response.status, response.status === 401 ? "unauthorized" : "request_failed");
   return response.status === 204 ? ({} as T) : response.json() as Promise<T>;
 }
 
@@ -17,7 +26,12 @@ function loginView(message = "", mode: "login" | "register" = "login"): void {
   document.querySelector<HTMLFormElement>("#login-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget as HTMLFormElement);
-    try { await request(isRegister ? "/v1/auth/register" : "/v1/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) }); await dashboardView(); } catch { loginView(isRegister ? "Could not create account. Use a unique email and a password of at least 12 characters." : "Invalid credentials or API unavailable.", mode); }
+    try { await request(isRegister ? "/v1/auth/register" : "/v1/auth/login", { method: "POST", body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) }); await dashboardView(); } catch (error) {
+      const message = isRegister
+        ? error instanceof ApiError && error.status === 409 ? "This email is already registered. Sign in instead." : "Could not create account. Use a unique email and a password of at least 12 characters."
+        : error instanceof ApiError && error.status === 0 ? "API unavailable. Start the API on http://localhost:3000." : "Account not found or password is incorrect. Use Register if this is your first login.";
+      loginView(message, mode);
+    }
   });
 }
 
