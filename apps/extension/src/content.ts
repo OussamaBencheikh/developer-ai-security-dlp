@@ -39,12 +39,14 @@ function removeWarning(): void {
 function showWarning(result: ScanResult, action: PolicyAction, onRedact: () => void, onSendAnyway: () => void): void {
   removeWarning();
   const backdrop = document.createElement("div");
+  const categories = [...new Set(result.detections.map((detection) => detection.category.replaceAll("_", " ")))].join(", ");
   backdrop.dataset.dlpWarning = "true";
   backdrop.setAttribute("role", "presentation");
   backdrop.innerHTML = `
     <div role="dialog" aria-modal="true" aria-labelledby="dlp-warning-title">
       <h2 id="dlp-warning-title">${result.detections.length} security risk${result.detections.length === 1 ? "" : "s"} detected</h2>
       <p>This message may contain sensitive developer information. Your content stays in this browser.</p>
+      <p><strong>Categories:</strong> ${categories}</p>
       <p><strong>Policy:</strong> ${action === "block" ? "Sending is blocked until risks are removed." : "Review before sending."}</p>
       <div data-dlp-actions>
         <button type="button" data-dlp-redact>Redact &amp; Send</button>

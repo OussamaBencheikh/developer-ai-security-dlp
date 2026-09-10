@@ -10,4 +10,9 @@ describe("security policy", () => {
     const result = scan("DATABASE_URL=postgres://app:password@db.internal/app");
     expect(decide(result, { ...defaultPolicy, high: "allow" })).toEqual({ action: "allow", reason: "high" });
   });
+
+  it("keeps the strongest action across different findings", () => {
+    const result = scan("const token = 'ghp_12345678901234567890';\nDATABASE_URL=postgres://app:password@db.internal/app");
+    expect(decide(result, { ...defaultPolicy, critical: "allow" })).toEqual({ action: "warn", reason: "high" });
+  });
 });

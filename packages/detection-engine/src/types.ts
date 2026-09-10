@@ -9,6 +9,11 @@ export type SecretCategory =
   | "private_key"
   | "jwt"
   | "database_url"
+  | "stripe_key"
+  | "sendgrid_key"
+  | "azure_connection_string"
+  | "internal_url"
+  | "private_ip"
   | "generic_secret";
 
 export type Severity = "info" | "low" | "medium" | "high" | "critical";

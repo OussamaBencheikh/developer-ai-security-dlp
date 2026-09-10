@@ -17,4 +17,9 @@ describe("local detection engine", () => {
     const result = scan("postgres://app:strong-password@db.internal:5432/app\n-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----");
     expect(result.detections.map((item) => item.category)).toEqual(["database_url", "private_key"]);
   });
+
+  it("detects cloud and infrastructure indicators", () => {
+    const result = scan("STRIPE=sk_live_1234567890abcdefghijkl\nhttps://payments.internal/v1\nredis://10.0.0.12:6379");
+    expect(result.detections.map((item) => item.category)).toEqual(["stripe_key", "internal_url", "private_ip"]);
+  });
 });
