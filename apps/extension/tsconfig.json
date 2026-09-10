@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@dlp/detection-engine": ["../../packages/detection-engine/src/index.ts"],
+      "@dlp/redaction-engine": ["../../packages/redaction-engine/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Developer AI Security DLP",
+  "version": "0.1.0",
+  "description": "Helps detect sensitive developer information before it is sent to supported AI services.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*"
+  ],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "Developer AI Security DLP", "default_popup": "popup.html" },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://claude.ai/*", "https://gemini.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html",
+  "minimum_chrome_version": "120"
+}
