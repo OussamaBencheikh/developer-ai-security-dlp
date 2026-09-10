@@ -155,7 +155,7 @@ export function createApiServer(options: ApiOptions = {}) {
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]?.replaceAll("\\", "/")}`) {
+if (process.argv[1]?.toLowerCase().endsWith("server.js")) {
   const port = Number(process.env.API_PORT ?? 3000);
   createApiServer().listen(port, () => console.log(`DLP API listening on ${port}`));
 }
