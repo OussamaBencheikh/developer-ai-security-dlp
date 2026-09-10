@@ -135,4 +135,14 @@ export const detectors: readonly Detector[] = [
     pattern: /\b(?:API_KEY|SECRET_KEY|ACCESS_TOKEN|PASSWORD|CLIENT_SECRET)\s*[=:]\s*["']([^"'\s]{12,})["']/gi,
     detect: (context) => structuredCandidate({ ...context, candidate: context.candidate.replace(/^.*?[=:]\s*["']/, "").replace(/["']$/, "") }),
   },
+  {
+    id: "password-assignment",
+    category: "generic_secret",
+    severity: "high",
+    pattern: /\b(?:password|passwd|pwd)\s*[=:]\s*["']?([^\s"'`,;]{8,})["']?/gi,
+    detect: (context) => {
+      const candidate = context.candidate.replace(/^.*?[=:]\s*["']?/, "").replace(/["']?\s*$/, "");
+      return structuredCandidate({ ...context, candidate });
+    },
+  },
 ];

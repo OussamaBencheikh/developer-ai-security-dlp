@@ -30,6 +30,21 @@ function inspect(element: Element): void {
   const result = scan(source);
   element.toggleAttribute("data-dlp-risk", result.detections.length > 0);
   element.setAttribute("aria-description", result.detections.length > 0 ? `${result.detections.length} security risks detected` : "");
+  const liveWarning = document.querySelector<HTMLElement>("[data-dlp-live-warning]");
+  if (result.detections.length > 0) {
+    const categories = [...new Set(result.detections.map((detection) => detection.category.replaceAll("_", " ")))].join(", ");
+    const indicator = liveWarning ?? document.createElement("div");
+    indicator.dataset.dlpLiveWarning = "true";
+    indicator.setAttribute("role", "status");
+    indicator.setAttribute("aria-live", "polite");
+    indicator.textContent = `Potential sensitive data detected: ${categories}. Review before sending.`;
+    if (!liveWarning) {
+      indicator.style.cssText = "position:fixed;bottom:16px;right:16px;z-index:2147483646;max-width:360px;padding:10px 14px;background:#fff7ed;color:#9a3412;border:1px solid #fdba74;border-radius:8px;font:600 13px system-ui,sans-serif;box-shadow:0 4px 18px rgba(0,0,0,.16)";
+      document.documentElement.append(indicator);
+    }
+  } else {
+    liveWarning?.remove();
+  }
 }
 
 function removeWarning(): void {
