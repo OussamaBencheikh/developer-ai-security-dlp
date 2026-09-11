@@ -61,4 +61,17 @@ describe("metadata-only API", () => {
     expect(logout.status).toBe(204);
     expect((await authRequest(server, "/v1/auth/me", "GET", undefined, cookie ?? undefined)).status).toBe(401);
   });
+
+  it("protects team and admin routes while exposing billing metadata", async () => {
+    const server = createApiServer({ maxRequestsPerMinute: 30 });
+    servers.push(server);
+    const register = await authRequest(server, "/v1/auth/register", "POST", { email: "owner@example.com", password: "a-strong-password" });
+    const cookie = register.headers.get("set-cookie") ?? undefined;
+    expect((await authRequest(server, "/v1/team", "GET", undefined, cookie)).status).toBe(200);
+    const add = await authRequest(server, "/v1/team/members", "POST", { email: "member@example.com", role: "member" }, cookie);
+    expect(add.status).toBe(201);
+    expect((await authRequest(server, "/v1/billing", "GET", undefined, cookie)).status).toBe(200);
+    expect((await authRequest(server, "/v1/admin/health", "GET", undefined, cookie)).status).toBe(200);
+    expect((await authRequest(server, "/v1/team", "GET")).status).toBe(401);
+  });
 });

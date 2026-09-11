@@ -2,6 +2,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { Pool } from "pg";
 import { AuthStore, type AuthService } from "./auth.js";
 import { PostgresAuthStore } from "./auth-pg.js";
+import { can } from "./authorization.js";
+import { InMemoryTeamService, PostgresTeamService, type TeamService } from "./team.js";
+import type { OrganizationRole } from "./auth.js";
 
 const forbiddenField = /^(?:prompt|secretvalue|fullprompt|sourcecode|password|token|privatekey|authorization|cookie)$/i;
 const eventTypePattern = /^[a-z][a-z0-9_]{2,63}$/;
@@ -94,6 +97,8 @@ export function createApiServer(options: ApiOptions = {}) {
   const rateLimits = new Map<string, RateLimitEntry>();
   const databasePool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL, max: 10 }) : null;
   const auth: AuthService = databasePool ? new PostgresAuthStore(databasePool) : new AuthStore();
+  const localTeam = databasePool ? undefined : new InMemoryTeamService();
+  const team: TeamService = databasePool ? new PostgresTeamService(databasePool) : localTeam as InMemoryTeamService;
   return createServer(async (request, response) => {
     applyHeaders(response, requestOrigin(request, allowedOrigin));
     if (request.method === "OPTIONS") return send(response, 204, {});
@@ -113,6 +118,7 @@ export function createApiServer(options: ApiOptions = {}) {
         const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : null;
         if (!input || typeof input.email !== "string" || typeof input.password !== "string") return send(response, 400, { error: "invalid_request" });
         const user = await auth.register(input.email, input.password);
+        localTeam?.ensureOwner(user);
         const login = await auth.login(input.email, input.password);
         setSessionCookie(response, login.sessionId, 8 * 60 * 60);
         return send(response, 201, { user });
@@ -145,6 +151,42 @@ export function createApiServer(options: ApiOptions = {}) {
       const user = await auth.getUser(sessionId(request));
       if (!user) return send(response, 401, { error: "unauthorized" });
       return send(response, 200, { organization: await auth.organizationFor(user.id) });
+    }
+    if (request.method === "GET" && request.url === "/v1/team") {
+      const user = await auth.getUser(sessionId(request));
+      if (!user) return send(response, 401, { error: "unauthorized" });
+      return send(response, 200, { members: await team.list(user.organizationId) });
+    }
+    if (request.method === "POST" && request.url === "/v1/team/members") {
+      const user = await auth.getUser(sessionId(request));
+      if (!user) return send(response, 401, { error: "unauthorized" });
+      try {
+        const body = await readJson(request);
+        const input = body && typeof body === "object" && !Array.isArray(body) ? body as Record<string, unknown> : null;
+        if (!input || typeof input.email !== "string" || typeof input.role !== "string") return send(response, 400, { error: "invalid_request" });
+        const member = await team.add(user, input.email, input.role as OrganizationRole);
+        return send(response, 201, { member });
+      } catch (error) {
+        return send(response, error instanceof Error && error.message === "forbidden" ? 403 : 400, { error: error instanceof Error ? error.message : "invalid_request" });
+      }
+    }
+    const removeMember = request.method === "DELETE" ? request.url?.match(/^\/v1\/team\/members\/([^/]+)$/) : null;
+    if (removeMember) {
+      const user = await auth.getUser(sessionId(request));
+      if (!user) return send(response, 401, { error: "unauthorized" });
+      try { await team.remove(user, removeMember[1] as string); return send(response, 204, {}); }
+      catch (error) { return send(response, error instanceof Error && error.message === "forbidden" ? 403 : 404, { error: "member_not_found" }); }
+    }
+    if (request.method === "GET" && request.url === "/v1/billing") {
+      const user = await auth.getUser(sessionId(request));
+      if (!user) return send(response, 401, { error: "unauthorized" });
+      return send(response, 200, { plan: "FREE", provider: "not_configured", entitlements: ["local_protection"] });
+    }
+    if (request.method === "GET" && request.url === "/v1/admin/health") {
+      const user = await auth.getUser(sessionId(request));
+      if (!user) return send(response, 401, { error: "unauthorized" });
+      if (!can(user.role, "admin:access")) return send(response, 403, { error: "forbidden" });
+      return send(response, 200, { api: "ok", database: databasePool ? "configured" : "in_memory", version: "0.1.0" });
     }
     if (request.method === "GET" && request.url === "/v1/dashboard/summary") {
       const user = await auth.getUser(sessionId(request));

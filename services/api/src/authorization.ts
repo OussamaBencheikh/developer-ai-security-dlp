@@ -3,8 +3,8 @@ import type { OrganizationRole } from "./auth.js";
 export type Permission = "organization:read" | "team:manage" | "policy:manage" | "events:read" | "billing:manage" | "admin:access";
 
 const rolePermissions: Record<OrganizationRole, readonly Permission[]> = {
-  owner: ["organization:read", "team:manage", "policy:manage", "events:read", "billing:manage"],
-  admin: ["organization:read", "team:manage", "policy:manage", "events:read", "billing:manage"],
+  owner: ["organization:read", "team:manage", "policy:manage", "events:read", "billing:manage", "admin:access"],
+  admin: ["organization:read", "team:manage", "policy:manage", "events:read", "billing:manage", "admin:access"],
   security_admin: ["organization:read", "policy:manage", "events:read"],
   member: ["organization:read", "events:read"],
   viewer: ["organization:read", "events:read"],

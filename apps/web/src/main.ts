@@ -1,5 +1,6 @@
 interface User { email: string; organizationId: string; role: string }
 interface Summary { protectedDevices: number; detections: number; blockedEvents: number; redactions: number; recentEvents: { occurredAt: string; service: string; secretType: string; severity: string; action: string }[] }
+interface Member { userId: string; email: string; role: string }
 
 const api = "http://localhost:3000";
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -38,9 +39,36 @@ function loginView(message = "", mode: "login" | "register" = "login"): void {
 async function dashboardView(): Promise<void> {
   try {
     const [{ user }, summary] = await Promise.all([request<{ user: User }>("/v1/auth/me"), request<Summary>("/v1/dashboard/summary")]);
-    app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand">DLP <span>SECURITY</span></div><nav class="nav"><button class="active">Overview</button><button>Detections</button><button>Devices</button><button>Policies</button><button>Team</button><button>Billing</button></nav></aside><main class="content"><div class="topline"><div><div class="eyebrow">${user.email}</div><h1 class="title">Security overview</h1><p class="muted">Organization protection status and recent metadata.</p></div><span class="pill">Protection active</span></div><section class="metrics"><article class="metric"><div class="metric-label">Protected devices</div><div class="metric-value">${summary.protectedDevices}</div></article><article class="metric"><div class="metric-label">Detections</div><div class="metric-value">${summary.detections}</div></article><article class="metric"><div class="metric-label">Blocked events</div><div class="metric-value">${summary.blockedEvents}</div></article><article class="metric"><div class="metric-label">Redactions</div><div class="metric-value">${summary.redactions}</div></article></section><section class="grid"><article class="panel"><h2>Recent detections</h2>${summary.recentEvents.length ? summary.recentEvents.map((event) => `<div class="event"><span>${new Date(event.occurredAt).toLocaleTimeString()}</span><span>${event.service} · ${event.secretType}</span><span class="severity">${event.severity}</span></div>`).join("") : `<div class="empty">No security events yet. Local extension scans stay private.</div>`}</article><article class="panel"><h2>Organization</h2><p class="muted">Role</p><strong>${user.role.replaceAll("_", " ")}</strong><p class="muted">Organization ID</p><code>${user.organizationId}</code><hr><button id="logout">Sign out</button></article></section></main></div>`;
+    app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand">DLP <span>SECURITY</span></div><nav class="nav"><button data-view="overview" class="active">Overview</button><button data-view="detections">Detections</button><button data-view="devices">Devices</button><button data-view="policies">Policies</button><button data-view="team">Team</button><button data-view="billing">Billing</button><button data-view="admin">Admin</button></nav></aside><main class="content"><div class="topline"><div><div class="eyebrow">${user.email}</div><h1 class="title">Security overview</h1><p class="muted">Organization protection status and recent metadata.</p></div><span class="pill">Protection active</span></div><section class="metrics"><article class="metric"><div class="metric-label">Protected devices</div><div class="metric-value">${summary.protectedDevices}</div></article><article class="metric"><div class="metric-label">Detections</div><div class="metric-value">${summary.detections}</div></article><article class="metric"><div class="metric-label">Blocked events</div><div class="metric-value">${summary.blockedEvents}</div></article><article class="metric"><div class="metric-label">Redactions</div><div class="metric-value">${summary.redactions}</div></article></section><section class="grid"><article class="panel"><h2>Recent detections</h2>${summary.recentEvents.length ? summary.recentEvents.map((event) => `<div class="event"><span>${new Date(event.occurredAt).toLocaleTimeString()}</span><span>${event.service} · ${event.secretType}</span><span class="severity">${event.severity}</span></div>`).join("") : `<div class="empty">No security events yet. Local extension scans stay private.</div>`}</article><article class="panel"><h2>Organization</h2><p class="muted">Role</p><strong>${user.role.replaceAll("_", " ")}</strong><p class="muted">Organization ID</p><code>${user.organizationId}</code><hr><button id="logout">Sign out</button></article></section><section id="workspace-panel"></section></main></div>`;
     document.querySelector("#logout")?.addEventListener("click", async () => { await request("/v1/auth/logout", { method: "POST" }); loginView(); });
+    document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach((button) => button.addEventListener("click", () => {
+      document.querySelectorAll("[data-view]").forEach((item) => item.classList.remove("active"));
+      button.classList.add("active");
+      void renderWorkspacePanel(button.dataset.view ?? "overview");
+    }));
   } catch { loginView("Sign in to view the security console."); }
+}
+
+async function renderWorkspacePanel(view: string): Promise<void> {
+  const panel = document.querySelector<HTMLElement>("#workspace-panel");
+  if (!panel || view === "overview") { if (panel) panel.innerHTML = ""; return; }
+  if (view === "team") {
+    const data = await request<{ members: Member[] }>("/v1/team");
+    panel.innerHTML = `<article class="panel workspace"><h2>Team members</h2>${data.members.map((member) => `<div class="event"><span>${member.email}</span><span>${member.role.replaceAll("_", " ")}</span><span>${member.userId.startsWith("pending_") ? "Pending" : "Active"}</span></div>`).join("")}<form id="member-form"><label>Email<input name="email" type="email" required placeholder="member@company.com"></label><label>Role<select name="role"><option value="member">Member</option><option value="viewer">Viewer</option><option value="security_admin">Security admin</option><option value="admin">Admin</option></select></label><button class="primary" type="submit">Add member</button></form></article>`;
+    panel.querySelector("form")?.addEventListener("submit", async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget as HTMLFormElement); await request("/v1/team/members", { method: "POST", body: JSON.stringify({ email: form.get("email"), role: form.get("role") }) }); await renderWorkspacePanel("team"); });
+    return;
+  }
+  if (view === "billing") {
+    const billing = await request<{ plan: string; provider: string; entitlements: string[] }>("/v1/billing");
+    panel.innerHTML = `<article class="panel workspace"><h2>Billing and entitlements</h2><p class="muted">Current plan</p><strong>${billing.plan}</strong><p class="muted">Provider</p><strong>${billing.provider}</strong><p class="muted">Features</p><div>${billing.entitlements.join(" · ")}</div><p class="empty">Payment provider integration is not configured in local development.</p></article>`;
+    return;
+  }
+  if (view === "admin") {
+    const health = await request<{ api: string; database: string; version: string }>("/v1/admin/health");
+    panel.innerHTML = `<article class="panel workspace"><h2>Admin system health</h2><div class="event"><span>API</span><strong>${health.api}</strong></div><div class="event"><span>Database</span><strong>${health.database}</strong></div><div class="event"><span>Version</span><strong>${health.version}</strong></div></article>`;
+    return;
+  }
+  panel.innerHTML = `<article class="panel workspace"><h2>${view[0]?.toUpperCase()}${view.slice(1)}</h2><p class="empty">This view is connected to the product navigation and is ready for its persisted data endpoint.</p></article>`;
 }
 
 loginView();
